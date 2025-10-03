@@ -14,7 +14,7 @@ import {
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/transaction", label: "Transactions", icon: ReceiptText },
+  { href: "/dashboard/transactions", label: "Transactions", icon: ReceiptText },
   { href: "/dashboard/add-expense", label: "Add Expense", icon: PlusCircle },
   { href: "/dashboard/budgets", label: "Budgets", icon: Wallet },
   { href: "/dashboard/reports", label: "Reports", icon: PieChart },

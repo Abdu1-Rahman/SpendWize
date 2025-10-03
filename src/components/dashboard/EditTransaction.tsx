@@ -22,11 +22,12 @@ import {
 } from "@/components/ui/select";
 
 type Transaction = {
-  transaction_id: string;
-  category: string;
-  type: string;
-  payment_method: string;
-  note: string | null;
+  id: string;
+  category_id: string | null;
+  category_name?: string | null;
+  type: "income" | "expense";
+  payment_method: string | null;
+  notes: string | null;
   amount: number;
   currency: string;
   transaction_date: string;
@@ -42,80 +43,70 @@ export default function EditTransaction({
   const supabase = createClient();
 
   // local state prefilled with transaction values
-  const [category, setCategory] = useState("");
-  const [customCategory, setCustomCategory] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [type, setType] = useState("expense");
+  const [type, setType] = useState<"income" | "expense">("expense");
   const [currency, setCurrency] = useState("INR");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [transactionDate, setTransactionDate] = useState("");
-
-  const categories = [
-    "Food & Dining",
-    "Transport",
-    "Shopping",
-    "Bills & Utilities",
-    "Rent / Housing",
-    "Health & Medical",
-    "Entertainment",
-    "Education",
-    "Travel & Vacation",
-    "Personal Care",
-    "Gifts & Donations",
-    "Others / Miscellaneous",
-    "Add Custom",
-  ];
-
+  const [categories, setCategories] = useState<Array<{ id: string; category_name: string; type: "income" | "expense" }>>([]);
   const currencies = ["INR", "USD", "EUR", "GBP", "JPY"];
 
   // 👇 Prefill when transaction changes
   useEffect(() => {
     if (transaction) {
-      setCategory(transaction.category || "");
+      setCategoryId(transaction.category_id || "");
       setAmount(transaction.amount?.toString() || "");
-      setNote(transaction.note || "");
+      setNote(transaction.notes || "");
       setType(transaction.type || "expense");
       setCurrency(transaction.currency || "INR");
       setPaymentMethod(transaction.payment_method || "cash");
-      setTransactionDate(
-        transaction.transaction_date
-          ? new Date(transaction.transaction_date).toISOString().split("T")[0]
-          : ""
-      );
+      setTransactionDate(transaction.transaction_date || "");
     }
   }, [transaction]);
 
+  // Fetch categories for selection
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, category_name, type")
+        .order("category_name", { ascending: true });
+    };
+    fetchCategories();
+  }, [supabase]);
+
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!transaction) return;
+    if (!transaction) return;
 
-  const finalCategory =
-    category === "Add Custom" && customCategory ? customCategory : category;
+    // find the selected category's name to keep denormalized column in sync
+    const selected = categories.find((c) => c.id === categoryId);
+    const category_name = selected ? selected.category_name : null;
 
-  const { error } = await supabase
-    .from("transactions")
-    .update({
-      category: finalCategory,
-      type,
-      currency,
-      payment_method: paymentMethod,
-      note,
-      amount: parseFloat(amount),
-      transaction_date: new Date(transactionDate).toISOString(),
-    })
-    .eq("transaction_id", transaction.transaction_id);
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        category_id: categoryId || null,
+        category_name,
+        type,
+        currency,
+        payment_method: paymentMethod,
+        notes: note,
+        amount: parseFloat(amount),
+        transaction_date: transactionDate,
+      })
+      .eq("id", transaction.id);
 
-  if (error) {
-    console.error("❌ Error updating transaction:", error.message);
-  } else {
-    console.log("✅ Transaction updated");
-    onUpdated(); // refresh table in parent and close dialog
-  }
-};
-
-
+    if (error) {
+      console.error("Error updating transaction:", error.message);
+    } else {
+      console.log("Transaction updated");
+      onUpdated(); // refresh table in parent and close dialog
+    }
+  };
   return (
     <Dialog open={!!transaction} onOpenChange={() => onUpdated()}>
       <DialogContent className="sm:max-w-[425px]">
@@ -124,42 +115,35 @@ export default function EditTransaction({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
-          {/* Category */}
-          <div className="grid gap-3">
-            <Label>Category</Label>
-            <Select onValueChange={setCategory} value={category}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {category === "Add Custom" && (
-              <Input
-                className="mt-2"
-                placeholder="Enter custom category"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-              />
-            )}
-          </div>
-
           {/* Type */}
           <div className="grid gap-3">
             <Label>Type</Label>
-            <Select onValueChange={setType} value={type}>
+            <Select onValueChange={(v) => setType(v as any)} value={type}>
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="income">Income</SelectItem>
                 <SelectItem value="expense">Expense</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Category */}
+          <div className="grid gap-3">
+            <Label>Category</Label>
+            <Select onValueChange={setCategoryId} value={categoryId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories
+                  .filter((c) => c.type === type)
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.category_name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

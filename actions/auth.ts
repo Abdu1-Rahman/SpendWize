@@ -57,11 +57,11 @@ export async function signIn(formData: FormData) {
     };
   }
 
-  // check if profile already exists
+  // check if profile already exists (by auth uid)
   const { data: existingUser } = await supabase
     .from("user_profiles")
     .select("*")
-    .eq("email", credentials?.email)
+    .eq("id", data.user.id)
     .limit(1)
     .single();
 
@@ -71,10 +71,12 @@ export async function signIn(formData: FormData) {
       data?.user?.email?.split("@")[0] || // fallback to email prefix
       `user_${Date.now()}`; // last resort fallback
 
+    // Insert with id to satisfy RLS policy (auth.uid() = id) and PK requirement
     const { error: insertError } = await supabase
       .from("user_profiles")
       .insert({
-        email: data?.user.email,
+        id: data.user.id,
+        email: data.user.email,
         username,
       });
 
